@@ -87,6 +87,13 @@ class LLMClient:
             **extra,
         )
         content = response.choices[0].message.content
+        if content is None:
+            logger.warning(
+                "LLM returned None content (model=%s, finish_reason=%s)",
+                response.model,
+                response.choices[0].finish_reason,
+            )
+            content = ""
         logger.info("LLM response received (model=%s, usage=%s)", response.model, response.usage)
         return content
 

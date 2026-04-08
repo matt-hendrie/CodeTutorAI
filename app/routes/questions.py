@@ -244,10 +244,11 @@ def _repair_truncated_json(text: str) -> str:
     return text
 
 
-def _parse_llm_response(raw: str) -> dict | None:
+def _parse_llm_response(raw: str | None) -> dict | None:
     """Attempt to extract a JSON object from the LLM response.
 
     Handles:
+    - None or empty responses
     - Markdown code fences (```json ... ```)
     - Garbage text after the closing brace
     - Truncated JSON (missing closing braces/brackets)
@@ -255,6 +256,9 @@ def _parse_llm_response(raw: str) -> dict | None:
 
     Returns None if parsing fails.
     """
+    if not raw:
+        return None
+
     text = _strip_markdown_fences(raw)
 
     # Strategy 1: Try parsing the whole text as JSON
