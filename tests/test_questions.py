@@ -7,7 +7,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.routes.questions import _parse_llm_response
+from app.routes.questions import (
+    _extract_json_object,
+    _parse_llm_response,
+    _repair_truncated_json,
+    _strip_markdown_fences,
+)
 from app.services.prompts import DifficultyLevel, Topic
 
 client = TestClient(app)
@@ -414,3 +419,176 @@ class TestParseLLMResponse:
         data = {"title": "Test"}
         result = _parse_llm_response(f"  \n  {json.dumps(data)}  \n  ")
         assert result == data
+
+    def test_parse_truncated_json_missing_closing_brace(self):
+        """LLM ran out of tokens — missing closing brace."""
+        raw = '{"title": "Test", "question": "What?", "options": [{"label": "A", "text": "Option A"}'
+        result = _parse_llm_response(raw)
+        assert result is not None
+        assert result["title"] == "Test"
+        assert result["question"] == "What?"
+
+    def test_parse_truncated_json_missing_array_and_brace(self):
+        """LLM ran out of tokens — missing closing bracket and brace."""
+        raw = '{"title": "Test", "key_concepts": ["a", "b"'
+        result = _parse_llm_response(raw)
+        assert result is not None
+        assert result["title"] == "Test"
+        assert result["key_concepts"] == ["a", "b"]
+
+    def test_parse_truncated_json_with_open_string(self):
+        """LLM ran out of tokens mid-string value."""
+        raw = '{"title": "Test", "explanation": "This is an incomplete explanati'
+        result = _parse_llm_response(raw)
+        assert result is not None
+        assert result["title"] == "Test"
+        assert "explanation" in result
+
+    def test_parse_garbage_after_closing_brace(self):
+        """LLM appended garbage text after the JSON object."""
+        data = {"title": "Test", "question": "What?"}
+        raw = json.dumps(data) + " couches some random text here"
+        result = _parse_llm_response(raw)
+        assert result == data
+
+    def test_parse_garbage_after_closing_brace_in_code_block(self):
+        """LLM appended garbage inside a code block after the JSON."""
+        data = {"title": "Test", "question": "What?"}
+        raw = f"```json\n{json.dumps(data)} couches\n```"
+        result = _parse_llm_response(raw)
+        assert result == data
+
+    def test_parse_real_world_truncated_response(self):
+        """Simulate a real truncated LLM response — missing closing brace."""
+        raw = '''```json
+{
+  "title": "Understanding Linear Search",
+  "code_snippet": "def linear_search(arr, target):\\n    for i in range(len(arr)):\\n        if arr[i] == target:\\n            return i\\n    return -1",
+  "language": "python",
+  "question": "What will be the output?",
+  "options": [
+    {"label": "A", "text": "40"},
+    {"label": "B", "text": "-1"},
+    {"label": "C", "text": "2"},
+    {"label": "D", "text": "30"}
+  ],
+  "correct_option": "C",
+  "explanation": "The function returns the index where the target is found."'''
+        result = _parse_llm_response(raw)
+        assert result is not None
+        assert result["title"] == "Understanding Linear Search"
+        assert result["correct_option"] == "C"
+
+    def test_parse_garbage_inside_json_returns_none(self):
+        """Garbage text inside JSON string values cannot be repaired — returns None."""
+        raw = '{"title": "Test", "options": [{"label": "D", "text": "30"} couches], "correct_option": "C"'
+        result = _parse_llm_response(raw)
+        # Garbage inside JSON values makes the JSON unrepairable
+        assert result is None
+
+
+# ---------------------------------------------------------------------------
+# _strip_markdown_fences
+# ---------------------------------------------------------------------------
+
+
+class TestStripMarkdownFences:
+    """Tests for the _strip_markdown_fences helper."""
+
+    def test_strip_json_fence(self):
+        text = '```json\n{"title": "Test"}\n```'
+        assert _strip_markdown_fences(text) == '{"title": "Test"}'
+
+    def test_strip_plain_fence(self):
+        text = '```\n{"title": "Test"}\n```'
+        assert _strip_markdown_fences(text) == '{"title": "Test"}'
+
+    def test_no_fence(self):
+        text = '{"title": "Test"}'
+        assert _strip_markdown_fences(text) == '{"title": "Test"}'
+
+    def test_preserves_inner_content(self):
+        text = '```json\n{"a": 1, "b": 2}\n```'
+        assert _strip_markdown_fences(text) == '{"a": 1, "b": 2}'
+
+
+# ---------------------------------------------------------------------------
+# _extract_json_object
+# ---------------------------------------------------------------------------
+
+
+class TestExtractJsonObject:
+    """Tests for the _extract_json_object helper."""
+
+    def test_simple_object(self):
+        text = '{"title": "Test"}'
+        assert _extract_json_object(text) == '{"title": "Test"}'
+
+    def test_object_with_garbage_after(self):
+        text = '{"title": "Test"} some garbage here'
+        assert _extract_json_object(text) == '{"title": "Test"}'
+
+    def test_object_with_prefix(self):
+        text = 'Here is the JSON: {"title": "Test"}'
+        assert _extract_json_object(text) == '{"title": "Test"}'
+
+    def test_nested_object(self):
+        text = '{"title": "Test", "options": [{"label": "A", "text": "X"}]}'
+        result = _extract_json_object(text)
+        assert '"title": "Test"' in result
+        assert '"options"' in result
+
+    def test_no_object_returns_none(self):
+        text = "No JSON here"
+        assert _extract_json_object(text) is None
+
+    def test_braces_in_strings(self):
+        text = '{"title": "A {special} test"}'
+        assert _extract_json_object(text) == '{"title": "A {special} test"}'
+
+    def test_escaped_quotes_in_strings(self):
+        text = '{"title": "He said \\"hello\\""}'
+        assert _extract_json_object(text) == '{"title": "He said \\"hello\\""}'
+
+    def test_truncated_object_returns_none(self):
+        """If the JSON is truncated (no closing brace), returns None."""
+        text = '{"title": "Test", "options": ['
+        assert _extract_json_object(text) is None
+
+
+# ---------------------------------------------------------------------------
+# _repair_truncated_json
+# ---------------------------------------------------------------------------
+
+
+class TestRepairTruncatedJson:
+    """Tests for the _repair_truncated_json helper."""
+
+    def test_complete_json_unchanged(self):
+        text = '{"title": "Test"}'
+        assert _repair_truncated_json(text) == '{"title": "Test"}'
+
+    def test_missing_closing_brace(self):
+        text = '{"title": "Test", "question": "What?"'
+        assert _repair_truncated_json(text) == '{"title": "Test", "question": "What?"}'
+
+    def test_missing_closing_bracket_and_brace(self):
+        text = '{"title": "Test", "options": [{"label": "A", "text": "X"}'
+        assert _repair_truncated_json(text) == '{"title": "Test", "options": [{"label": "A", "text": "X"}]}'
+
+    def test_missing_multiple_brackets(self):
+        text = '{"title": "Test", "key_concepts": ["a", "b"'
+        assert _repair_truncated_json(text) == '{"title": "Test", "key_concepts": ["a", "b"]}'
+
+    def test_open_string_closed(self):
+        text = '{"title": "Test", "explanation": "incomplete'
+        result = _repair_truncated_json(text)
+        assert result == '{"title": "Test", "explanation": "incomplete"}'
+
+    def test_already_complete_json(self):
+        text = '{"title": "Test", "options": [{"label": "A", "text": "X"}]}'
+        assert _repair_truncated_json(text) == text
+
+    def test_nested_complete(self):
+        text = '{"a": {"b": 1}}'
+        assert _repair_truncated_json(text) == '{"a": {"b": 1}}'

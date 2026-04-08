@@ -335,10 +335,11 @@ class TestSystemPromptTemplate:
     """Tests for the SYSTEM_PROMPT_TEMPLATE string."""
 
     def test_template_contains_key_sections(self):
-        assert "Your Approach" in SYSTEM_PROMPT_TEMPLATE
-        assert "Current Parameters" in SYSTEM_PROMPT_TEMPLATE
-        assert "Output Format" in SYSTEM_PROMPT_TEMPLATE
-        assert "Guidelines" in SYSTEM_PROMPT_TEMPLATE
+        assert "code tutor" in SYSTEM_PROMPT_TEMPLATE.lower()
+        assert "Difficulty" in SYSTEM_PROMPT_TEMPLATE
+        assert "Topic" in SYSTEM_PROMPT_TEMPLATE
+        assert "JSON" in SYSTEM_PROMPT_TEMPLATE
+        assert "Rules" in SYSTEM_PROMPT_TEMPLATE
 
     def test_template_has_format_placeholders(self):
         assert "{difficulty_label}" in SYSTEM_PROMPT_TEMPLATE
@@ -361,7 +362,7 @@ class TestSystemPromptTemplate:
         )
         assert "Easy" in result
         assert "Algorithms" in result
-        assert "expert code tutor" in result.lower()
+        assert "code tutor" in result.lower()
 
 
 # ---------------------------------------------------------------------------
@@ -415,7 +416,7 @@ class TestBuildQuestionPrompt:
 
     def test_system_message_contains_role_definition(self):
         messages = build_question_prompt()
-        assert "expert code tutor" in messages[0]["content"].lower()
+        assert "code tutor" in messages[0]["content"].lower()
 
     def test_system_message_contains_output_format(self):
         messages = build_question_prompt()

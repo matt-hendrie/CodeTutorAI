@@ -80,7 +80,7 @@ async def generate_question(
         messages[1]["content"] += " The question must be multiple choice with four options (A, B, C, D)."
 
     try:
-        raw_response = await llm_client.chat(messages=messages)
+        raw_response = await llm_client.chat(messages=messages, max_tokens=1024)
     except ValueError as exc:
         logger.warning("LLM client error: %s", exc)
         return templates.TemplateResponse(
@@ -139,23 +139,125 @@ async def generate_question(
     )
 
 
-def _parse_llm_response(raw: str) -> dict | None:
-    """Attempt to extract a JSON object from the LLM response.
-
-    The LLM may wrap the JSON in markdown code blocks, so we strip those
-    before parsing. Returns None if parsing fails.
-    """
-    text = raw.strip()
-
-    # Strip markdown code fences if present
+def _strip_markdown_fences(text: str) -> str:
+    """Strip markdown code fences (```json ... ```) from around the text."""
+    text = text.strip()
     if text.startswith("```"):
         lines = text.split("\n")
-        # Remove first line (```json or ```) and last line (```)
+        # Remove first line (```json or ```)
         lines = lines[1:]
+        # Remove trailing ``` line if present
         if lines and lines[-1].strip() == "```":
             lines = lines[:-1]
         text = "\n".join(lines)
+    return text
 
+
+def _extract_json_object(text: str) -> str | None:
+    """Extract the outermost JSON object from text, handling garbage after the closing brace."""
+    start = text.find("{")
+    if start == -1:
+        return None
+
+    # Walk through the text counting braces to find the true end of the JSON object.
+    # This handles cases where the LLM appends garbage after the closing brace.
+    depth = 0
+    in_string = False
+    escape_next = False
+
+    for i in range(start, len(text)):
+        char = text[i]
+
+        if escape_next:
+            escape_next = False
+            continue
+
+        if char == "\\" and in_string:
+            escape_next = True
+            continue
+
+        if char == '"' and not escape_next:
+            in_string = not in_string
+            continue
+
+        if in_string:
+            continue
+
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start : i + 1]
+
+    # If we get here, the JSON is truncated (no closing brace found)
+    return None
+
+
+def _repair_truncated_json(text: str) -> str:
+    """Attempt to repair truncated JSON by closing open strings, arrays, and objects.
+
+    This handles the common case where the LLM runs out of tokens mid-response,
+    leaving incomplete JSON. We try to close everything that's open.
+    """
+    # Track what's open so we can close it
+    open_brackets = []  # stack of '{' or '['
+    in_string = False
+    escape_next = False
+
+    for char in text:
+        if escape_next:
+            escape_next = False
+            continue
+
+        if char == "\\" and in_string:
+            escape_next = True
+            continue
+
+        if char == '"' and not escape_next:
+            in_string = not in_string
+            continue
+
+        if in_string:
+            continue
+
+        if char in "{[":
+            open_brackets.append(char)
+        elif char in "}]":
+            if open_brackets:
+                # Check if it matches
+                opener = open_brackets[-1]
+                if (char == "}" and opener == "{") or (char == "]" and opener == "["):
+                    open_brackets.pop()
+
+    # Close any open string
+    if in_string:
+        text += '"'
+
+    # Close any open brackets in reverse order
+    for bracket in reversed(open_brackets):
+        if bracket == "{":
+            text += "}"
+        elif bracket == "[":
+            text += "]"
+
+    return text
+
+
+def _parse_llm_response(raw: str) -> dict | None:
+    """Attempt to extract a JSON object from the LLM response.
+
+    Handles:
+    - Markdown code fences (```json ... ```)
+    - Garbage text after the closing brace
+    - Truncated JSON (missing closing braces/brackets)
+    - JSON embedded in surrounding text
+
+    Returns None if parsing fails.
+    """
+    text = _strip_markdown_fences(raw)
+
+    # Strategy 1: Try parsing the whole text as JSON
     try:
         data = json.loads(text)
         if isinstance(data, dict):
@@ -163,12 +265,32 @@ def _parse_llm_response(raw: str) -> dict | None:
     except json.JSONDecodeError:
         pass
 
-    # Try to find JSON object within the text as a fallback
-    start = text.find("{")
-    end = text.rfind("}")
-    if start != -1 and end != -1 and end > start:
+    # Strategy 2: Extract the JSON object (handles garbage after closing brace)
+    extracted = _extract_json_object(text)
+    if extracted:
         try:
-            data = json.loads(text[start : end + 1])
+            data = json.loads(extracted)
+            if isinstance(data, dict):
+                return data
+        except json.JSONDecodeError:
+            pass
+
+        # Strategy 3: Try to repair truncated JSON
+        repaired = _repair_truncated_json(extracted)
+        if repaired != extracted:
+            try:
+                data = json.loads(repaired)
+                if isinstance(data, dict):
+                    return data
+            except json.JSONDecodeError:
+                pass
+
+    # Strategy 4: Extraction failed (truncated JSON with no closing brace).
+    # Try to repair the full text directly.
+    repaired = _repair_truncated_json(text)
+    if repaired != text:
+        try:
+            data = json.loads(repaired)
             if isinstance(data, dict):
                 return data
         except json.JSONDecodeError:
