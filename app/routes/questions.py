@@ -5,6 +5,7 @@ import logging
 
 from fastapi import APIRouter, Form, Request
 from fastapi.templating import Jinja2Templates
+from openai import APITimeoutError, RateLimitError
 
 from app.models.prompts import DifficultyLevel, QuestionFormat
 from app.services.llm import llm_client
@@ -85,6 +86,24 @@ async def generate_question(
         return templates.TemplateResponse(
             "partials/question_error.html",
             {"request": request, "error_message": str(exc)},
+        )
+    except RateLimitError:
+        logger.warning("LLM rate limit exceeded")
+        return templates.TemplateResponse(
+            "partials/question_error.html",
+            {
+                "request": request,
+                "error_message": "The AI model is currently rate-limited. Please wait a moment and try again.",
+            },
+        )
+    except APITimeoutError:
+        logger.warning("LLM request timed out")
+        return templates.TemplateResponse(
+            "partials/question_error.html",
+            {
+                "request": request,
+                "error_message": "The request timed out. The AI model may be slow or unavailable — please try again.",
+            },
         )
     except Exception as exc:
         logger.exception("Unexpected LLM error")
