@@ -21,14 +21,12 @@ class LLMClient:
         base_url: str | None = None,
         model: str | None = None,
         temperature: float | None = None,
-        max_tokens: int = 1024,
         timeout: float = 60.0,
     ) -> None:
         self._api_key = api_key or settings.llm_api_key
         self._base_url = base_url or OPENROUTER_BASE_URL
         self._model = model or settings.llm_model
         self._temperature = temperature if temperature is not None else settings.llm_temperature
-        self._max_tokens = max_tokens
         self._timeout = timeout
         self._client: AsyncOpenAI | None = None
 
@@ -59,7 +57,6 @@ class LLMClient:
         messages: list[dict[str, str]],
         model: str | None = None,
         temperature: float | None = None,
-        max_tokens: int | None = None,
         **extra: Any,
     ) -> str:
         """Send a chat completion request and return the assistant message content.
@@ -68,7 +65,6 @@ class LLMClient:
             messages: List of message dicts with "role" and "content" keys.
             model: Override the default model.
             temperature: Override the default temperature.
-            max_tokens: Override the default max_tokens.
             **extra: Additional keyword arguments passed to the API.
 
         Returns:
@@ -83,7 +79,6 @@ class LLMClient:
             model=model or self._model,
             messages=messages,
             temperature=temperature if temperature is not None else self._temperature,
-            max_tokens=max_tokens or self._max_tokens,
             **extra,
         )
         content = response.choices[0].message.content

@@ -80,7 +80,7 @@ async def generate_question(
         messages[1]["content"] += " The question must be multiple choice with four options (A, B, C, D)."
 
     try:
-        raw_response = await llm_client.chat(messages=messages, max_tokens=1024)
+        raw_response = await llm_client.chat(messages=messages)
     except ValueError as exc:
         logger.warning("LLM client error: %s", exc)
         return templates.TemplateResponse(

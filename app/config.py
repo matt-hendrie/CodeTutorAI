@@ -22,7 +22,6 @@ class Settings(BaseSettings):
     llm_base_url: str = "https://openrouter.ai/api/v1"
     llm_model: str = "gpt-4"
     llm_temperature: float = 0.7
-    llm_max_tokens: int = 1024
     llm_site_url: str = ""
     llm_site_name: str = "CodeTutorAI"
 
