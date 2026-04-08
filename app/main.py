@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.config import settings
-from app.routes import pages
+from app.routes import pages, questions
 from app.services.llm import llm_client
 
 
@@ -35,6 +35,7 @@ def create_app() -> FastAPI:
 
     # Include routers
     app.include_router(pages.router)
+    app.include_router(questions.router)
 
     return app
 
