@@ -15,10 +15,14 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
     debug: bool = False
 
-    # LLM settings
+    # LLM settings (OpenRouter)
     llm_api_key: str = ""
+    llm_base_url: str = "https://openrouter.ai/api/v1"
     llm_model: str = "gpt-4"
     llm_temperature: float = 0.7
+    llm_max_tokens: int = 2048
+    llm_site_url: str = ""
+    llm_site_name: str = "CodeTutorAI"
 
     # Server settings
     host: str = "0.0.0.0"
