@@ -1,30 +1,57 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="h-full">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}CodeTutorAI{% endblock %}</title>
+
+    <!-- Tailwind CSS via Play CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- HTMX -->
+    <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js"></script>
+
+    <!-- HTMX Configuration -->
+    <meta name="htmx-config" content='{
+        "defaultSwapStyle": "innerHTML",
+        "historyCacheSize": 20,
+        "timeout": 10000,
+        "selfRequestsOnly": true,
+        "globalViewTransitions": true,
+        "indicatorClass": "htmx-indicator",
+        "requestClass": "htmx-request"
+    }'>
+
+    <!-- Custom Styles -->
     <link rel="stylesheet" href="{{ url_for('static', path='/css/style.css') }}">
     {% block extra_css %}{% endblock %}
 </head>
-<body>
-    <header>
-        <nav>
-            <a href="{{ url_for('home') }}" class="logo">CodeTutorAI</a>
-            <ul>
-                <li><a href="{{ url_for('home') }}">Home</a></li>
+<body class="h-full bg-slate-50 text-slate-800 antialiased">
+    <!-- Navigation -->
+    <header class="bg-white border-b border-slate-200">
+        <nav class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+            <a href="{{ url_for('home') }}" class="text-xl font-bold text-blue-600 hover:text-blue-800 transition-colors">
+                CodeTutorAI
+            </a>
+            <ul class="flex items-center gap-6">
+                <li><a href="{{ url_for('home') }}" class="text-slate-600 hover:text-blue-600 transition-colors">Home</a></li>
             </ul>
         </nav>
     </header>
 
-    <main>
+    <!-- Main Content -->
+    <main class="max-w-5xl mx-auto px-4 py-8">
         {% block content %}{% endblock %}
     </main>
 
-    <footer>
-        <p>&copy; 2026 CodeTutorAI</p>
+    <!-- Footer -->
+    <footer class="border-t border-slate-200 mt-auto">
+        <div class="max-w-5xl mx-auto px-4 py-6 text-center text-sm text-slate-500">
+            &copy; 2026 CodeTutorAI
+        </div>
     </footer>
 
+    <!-- App JS -->
     <script src="{{ url_for('static', path='/js/main.js') }}"></script>
     {% block extra_js %}{% endblock %}
 </body>

@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8000
 
+    # Frontend CDN settings
+    htmx_version: str = "2.0.4"
+    tailwind_enabled: bool = True
+
     # Path settings
     templates_dir: str = "app/templates"
     static_dir: str = "app/static"

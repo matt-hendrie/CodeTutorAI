@@ -3,21 +3,38 @@
 {% block title %}Explain That Code{% endblock %}
 
 {% block content %}
-<div class="container">
-    <header class="hero">
-        <h1>Explain That Code</h1>
-        <p class="subtitle">An LLM-powered code tutoring tool</p>
+<div class="space-y-12">
+    <!-- Hero Section -->
+    <header class="text-center space-y-4">
+        <h1 class="text-4xl font-extrabold text-slate-900 sm:text-5xl">Explain That Code</h1>
+        <p class="text-lg text-slate-600 max-w-2xl mx-auto">An LLM-powered code tutoring tool that breaks down code step by step.</p>
     </header>
 
-    <main class="main-content">
-        <section class="intro">
-            <h2>How It Works</h2>
-            <p>Paste your code and let the AI tutor break it down for you, step by step.</p>
-        </section>
+    <!-- How It Works -->
+    <section class="space-y-4">
+        <h2 class="text-2xl font-bold text-slate-900">How It Works</h2>
+        <p class="text-slate-600">Paste your code and let the AI tutor explain it for you.</p>
+    </section>
 
-        <section class="cta">
-            <a href="#" class="btn btn-primary">Get Started</a>
-        </section>
-    </main>
+    <!-- HTMX Demo -->
+    <section class="space-y-4">
+        <h2 class="text-2xl font-bold text-slate-900">Try It</h2>
+        <div id="demo-output" class="p-6 bg-white rounded-lg border border-slate-200">
+            <p class="text-slate-500">Click the button to test HTMX...</p>
+        </div>
+        <button
+            hx-get="/demo"
+            hx-target="#demo-output"
+            hx-swap="innerHTML"
+            hx-indicator="#demo-loading"
+            class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
+        >
+            <span>Test HTMX</span>
+            <svg id="demo-loading" class="htmx-indicator animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+        </button>
+    </section>
 </div>
 {% endblock %}
