@@ -1,9 +1,20 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.config import settings
 from app.routes import pages
+from app.services.llm import llm_client
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage application lifespan — startup and shutdown."""
+    yield
+    # Shutdown: close the LLM client connection
+    await llm_client.close()
 
 
 def create_app() -> FastAPI:
@@ -12,6 +23,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.app_name,
         debug=settings.debug,
+        lifespan=lifespan,
     )
 
     # Mount static files
