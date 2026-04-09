@@ -14,7 +14,6 @@ from app.models.prompts import (
     EvaluationScore,
     QuestionTopic,
 )
-from app.routes.questions import _parse_llm_response
 from app.services.prompts import (
     CODE_BLOCK_TEMPLATE,
     EVALUATE_PROMPT_TEMPLATE,
@@ -411,8 +410,12 @@ class TestEvaluateAnswer:
         return json.dumps(
             {
                 "score": 8,
-                "feedback": "Good understanding of binary search. You correctly identified that it returns the index.",
-                "correct_answer": "Binary search returns the index of the target element in a sorted array, or -1 if not found.",
+                "feedback": (
+                    "Good understanding of binary search. You correctly identified that it returns the index."
+                ),
+                "correct_answer": (
+                    "Binary search returns the index of the target element in a sorted array, or -1 if not found."
+                ),
                 "key_points": [
                     "Correctly identified the return value as an index",
                     "Missed the case when the target is not found (returns -1)",
@@ -750,7 +753,10 @@ class TestEvaluateAnswer:
             "/questions/evaluate",
             data={
                 "question_json": self._make_question_json(),
-                "user_answer": "Binary search returns the index of the target element in a sorted array, using O(log n) time complexity by repeatedly dividing the search interval in half.",
+                "user_answer": (
+                    "Binary search returns the index of the target element in a sorted array, "
+                    "using O(log n) time complexity by repeatedly dividing the search interval in half."
+                ),
                 "difficulty": "medium",
                 "topic": "algorithms",
             },
@@ -760,7 +766,7 @@ class TestEvaluateAnswer:
 
     @patch("app.routes.questions.llm_client")
     def test_evaluate_uses_build_evaluate_prompt(self, mock_llm):
-        """Verify the endpoint calls build_evaluate_prompt with the right parameters."""
+        """Verify the endpoint calls build_evaluate_prompt correctly."""
         mock_llm.chat = AsyncMock(return_value=self._make_evaluation_json())
 
         with patch("app.routes.questions.build_evaluate_prompt") as mock_build:
