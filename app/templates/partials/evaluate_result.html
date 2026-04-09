@@ -1,0 +1,74 @@
+<!-- Evaluation Result Partial -->
+<div class="px-6 py-4 space-y-4" hx-on:afterSwap="document.getElementById('correct-answer').classList.remove('hidden'); document.getElementById('key-concepts')?.classList.remove('hidden'); document.getElementById('answer-form').classList.add('hidden');">
+    <!-- Score Badge -->
+    <div class="flex items-center gap-4">
+        <div class="flex items-center justify-center w-14 h-14 rounded-full text-xl font-bold
+            {% if evaluation.score >= 8 %}bg-green-100 text-green-800 border-2 border-green-300
+            {% elif evaluation.score >= 5 %}bg-amber-100 text-amber-800 border-2 border-amber-300
+            {% else %}bg-red-100 text-red-800 border-2 border-red-300{% endif %}">
+            {{ evaluation.score }}/10
+        </div>
+        <div>
+            <p class="font-semibold text-slate-900">
+                {% if evaluation.score >= 8 %}Great job!
+                {% elif evaluation.score >= 5 %}Good attempt!
+                {% else %}Keep practicing!{% endif %}
+            </p>
+            <p class="text-sm text-slate-500">
+                {% if evaluation.score >= 8 %}You have a strong understanding of this topic.
+                {% elif evaluation.score >= 5 %}You are on the right track but some gaps remain.
+                {% else %}This topic needs more review. Read the feedback below.{% endif %}
+            </p>
+        </div>
+    </div>
+
+    <!-- Feedback -->
+    {% if evaluation.feedback %}
+    <div class="p-4 rounded-lg bg-slate-50 border border-slate-200">
+        <h3 class="text-sm font-semibold text-slate-900 mb-1">Feedback</h3>
+        <p class="text-sm text-slate-700">{{ evaluation.feedback }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Key Points -->
+    {% if evaluation.key_points %}
+    <div class="space-y-2">
+        <h3 class="text-sm font-semibold text-slate-900">Key Points</h3>
+        <ul class="space-y-1">
+            {% for point in evaluation.key_points %}
+            <li class="flex items-start gap-2 text-sm text-slate-700">
+                <span class="flex-shrink-0 mt-1 w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                {{ point }}
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <!-- Correct Answer (from evaluation) -->
+    {% if evaluation.correct_answer %}
+    <div class="p-4 rounded-lg bg-blue-50 border border-blue-200">
+        <h3 class="text-sm font-semibold text-blue-900 mb-1">Correct Answer</h3>
+        <p class="text-sm text-blue-800">{{ evaluation.correct_answer }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Follow-up Question -->
+    {% if evaluation.follow_up %}
+    <div class="p-4 rounded-lg bg-indigo-50 border border-indigo-200">
+        <h3 class="text-sm font-semibold text-indigo-900 mb-1">Follow-up Question</h3>
+        <p class="text-sm text-indigo-800">{{ evaluation.follow_up }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Generate Another -->
+    <div class="pt-2">
+        <button
+            type="button"
+            onclick="document.getElementById('question-result').innerHTML = ''; document.querySelector('[hx-post='/questions/generate']')?.dispatchEvent(new Event('submit', {cancelable: true}));"
+            class="px-5 py-2 bg-slate-100 text-slate-700 font-medium rounded-lg hover:bg-slate-200 transition-colors text-sm"
+        >
+            Generate Another Question
+        </button>
+    </div>
+</div>

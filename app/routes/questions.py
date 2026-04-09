@@ -10,7 +10,7 @@ from openai import APITimeoutError, RateLimitError
 from app.models.prompts import DifficultyLevel, QuestionFormat
 from app.services.llm import llm_client
 from app.services.prompts import DifficultyLevel as SvcDifficulty
-from app.services.prompts import Topic, build_question_prompt
+from app.services.prompts import Topic, build_evaluate_prompt, build_question_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +135,105 @@ async def generate_question(
             "topic": topic,
             "format": format,
             "language": language,
+        },
+    )
+
+
+@router.post("/evaluate")
+async def evaluate_answer(
+    request: Request,
+    question_json: str = Form(...),
+    user_answer: str = Form(...),
+    difficulty: DifficultyLevel = Form(DifficultyLevel.MEDIUM),
+    topic: Topic = Form(Topic.ALGORITHMS),
+):
+    """Evaluate a learner's answer via HTMX and return an HTML partial.
+
+    Args:
+        question_json: JSON string of the question data (from hidden form field).
+        user_answer: The learner's submitted answer text.
+        difficulty: The difficulty level of the question.
+        topic: The topic of the question.
+    """
+    # Parse the question JSON from the hidden form field
+    question_data = _parse_llm_response(question_json)
+    if question_data is None:
+        logger.warning("Failed to parse question JSON from form submission")
+        return templates.TemplateResponse(
+            "partials/evaluate_error.html",
+            {
+                "request": request,
+                "error_message": "Could not load the question data. Please generate a new question and try again.",
+            },
+        )
+
+    # Map model difficulty to service difficulty
+    svc_difficulty = DIFFICULTY_MAP.get(difficulty, SvcDifficulty.MEDIUM)
+
+    # Build the evaluation prompt messages
+    messages = build_evaluate_prompt(
+        question_data=question_data,
+        user_answer=user_answer,
+        difficulty=svc_difficulty,
+        topic=topic,
+    )
+
+    try:
+        raw_response = await llm_client.chat(messages=messages)
+    except ValueError as exc:
+        logger.warning("LLM client error: %s", exc)
+        return templates.TemplateResponse(
+            "partials/evaluate_error.html",
+            {"request": request, "error_message": str(exc)},
+        )
+    except RateLimitError:
+        logger.warning("LLM rate limit exceeded")
+        return templates.TemplateResponse(
+            "partials/evaluate_error.html",
+            {
+                "request": request,
+                "error_message": "The AI model is currently rate-limited. Please wait a moment and try again.",
+            },
+        )
+    except APITimeoutError:
+        logger.warning("LLM request timed out")
+        return templates.TemplateResponse(
+            "partials/evaluate_error.html",
+            {
+                "request": request,
+                "error_message": "The request timed out. The AI model may be slow or unavailable — please try again.",
+            },
+        )
+    except Exception as exc:
+        logger.exception("Unexpected LLM error during evaluation")
+        return templates.TemplateResponse(
+            "partials/evaluate_error.html",
+            {"request": request, "error_message": "An unexpected error occurred. Please try again."},
+        )
+
+    # Parse the evaluation response
+    evaluation_data = _parse_llm_response(raw_response)
+
+    if evaluation_data is None:
+        logger.warning("Failed to parse LLM evaluation response as JSON")
+        return templates.TemplateResponse(
+            "partials/evaluate_error.html",
+            {
+                "request": request,
+                "error_message": "Could not parse the evaluation result. Please try again.",
+                "raw_response": raw_response,
+            },
+        )
+
+    return templates.TemplateResponse(
+        "partials/evaluate_result.html",
+        {
+            "request": request,
+            "evaluation": evaluation_data,
+            "question": question_data,
+            "user_answer": user_answer,
+            "difficulty": difficulty,
+            "topic": topic,
         },
     )
 

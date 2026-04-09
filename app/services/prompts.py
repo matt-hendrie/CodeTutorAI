@@ -222,3 +222,95 @@ def build_explain_prompt(code: str, language: str | None = None) -> list[dict[st
     ]
 
     return messages
+
+
+# ---------------------------------------------------------------------------
+# Answer evaluation prompt
+# ---------------------------------------------------------------------------
+
+EVALUATE_PROMPT_TEMPLATE = """\
+You are a code tutor evaluating a learner's answer. Be fair, constructive, and encouraging.
+
+## Question
+Title: {title}
+Topic: {topic_label} — {topic_description}
+Difficulty: {difficulty_label}
+
+{question_block}{code_block}
+## Learner's Answer
+{user_answer}
+
+## Your Task
+Evaluate the answer and respond ONLY with valid JSON — no markdown, no extra text. Format:
+
+{{"score": 7, "feedback": "Specific, constructive feedback about what was right and what was wrong. Be encouraging but honest.", "correct_answer": "A concise summary of the correct answer", "key_points": ["what the learner got right", "what they missed or got wrong"], "follow_up": "A follow-up question to deepen understanding"}}
+
+## Scoring Rubric
+- 9-10: Excellent — fully correct with nuance and depth
+- 7-8: Good — mostly correct with minor gaps
+- 5-6: Partial — some understanding but significant gaps
+- 3-4: Weak — limited understanding, mostly incorrect
+- 1-2: Incorrect — no meaningful understanding demonstrated
+
+## Rules
+- Score must be an integer from 1 to 10
+- Feedback must be specific — reference what the learner said
+- If the answer is completely wrong, still be encouraging and explain the correct approach
+- The follow_up question should help the learner explore the topic further
+- Keep the response concise
+"""
+
+QUESTION_BLOCK_TEMPLATE = """
+Question: {question}
+"""
+
+CODE_BLOCK_TEMPLATE = """
+Code:
+```
+{code_snippet}
+```
+"""
+
+
+def build_evaluate_prompt(
+    question_data: dict[str, Any],
+    user_answer: str,
+    difficulty: DifficultyLevel | None = None,
+    topic: Topic | None = None,
+) -> list[dict[str, str]]:
+    """Build the message list for evaluating a learner's answer.
+
+    Args:
+        question_data: The question dict (from LLM response) containing title,
+            question, code_snippet, correct_option, explanation, etc.
+        user_answer: The learner's submitted answer text.
+        difficulty: Optional difficulty level for context.
+        topic: Optional topic for context.
+
+    Returns:
+        A list of message dicts ready to pass to LLMClient.chat().
+    """
+    # Determine difficulty and topic from question_data or parameters
+    diff = difficulty or DifficultyLevel.MEDIUM
+    top = topic or Topic.ALGORITHMS
+
+    question_block = QUESTION_BLOCK_TEMPLATE.format(question=question_data.get("question", ""))
+    code_snippet = question_data.get("code_snippet", "")
+    code_block = CODE_BLOCK_TEMPLATE.format(code_snippet=code_snippet) if code_snippet else ""
+
+    system_content = EVALUATE_PROMPT_TEMPLATE.format(
+        title=question_data.get("title", ""),
+        topic_label=top.label,
+        topic_description=top.describe(),
+        difficulty_label=diff.label,
+        question_block=question_block,
+        code_block=code_block,
+        user_answer=user_answer,
+    )
+
+    messages = [
+        {"role": "system", "content": system_content},
+        {"role": "user", "content": f"Evaluate this answer:\n\n{user_answer}"},
+    ]
+
+    return messages

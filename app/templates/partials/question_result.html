@@ -1,4 +1,4 @@
-<!-- Question Result Partial -->
+<!-- Question Result Partial — shows question with answer form, hides correct answer -->
 <article class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
     <!-- Header -->
     <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
@@ -26,36 +26,87 @@
         <p class="text-slate-800 font-medium">{{ question.question }}</p>
     </div>
 
-    <!-- Multiple Choice Options -->
+    <!-- Multiple Choice Options (shown as clickable buttons) -->
     {% if question.options %}
-    <div class="px-6 pb-4 space-y-2">
+    <div id="mc-options" class="px-6 pb-4 space-y-2">
         {% for option in question.options %}
-        <div class="flex items-start gap-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
-            <span class="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-full text-sm font-bold
-                {% if option.label == question.correct_option %}bg-green-100 text-green-800 border border-green-300{% else %}bg-slate-100 text-slate-600{% endif %}">
+        <button
+            type="button"
+            onclick="selectOption(this, '{{ option.label }}')"
+            class="mc-option w-full flex items-start gap-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-colors text-left"
+            data-label="{{ option.label }}"
+        >
+            <span class="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-full text-sm font-bold bg-slate-100 text-slate-600">
                 {{ option.label }}
             </span>
             <span class="text-slate-700">{{ option.text }}</span>
-        </div>
+        </button>
         {% endfor %}
     </div>
     {% endif %}
 
-    <!-- Explanation -->
-    {% if question.explanation %}
-    <details class="border-t border-slate-100">
-        <summary class="px-6 py-3 cursor-pointer text-blue-600 hover:text-blue-800 font-medium text-sm transition-colors">
-            Show Explanation
-        </summary>
-        <div class="px-6 pb-4">
-            <div class="prose prose-sm text-slate-700">{{ question.explanation }}</div>
-        </div>
-    </details>
-    {% endif %}
+    <!-- Answer Form -->
+    <div class="px-6 pb-4 border-t border-slate-100 pt-4">
+        <form
+            id="answer-form"
+            hx-post="/questions/evaluate"
+            hx-target="#evaluation-result"
+            hx-swap="innerHTML"
+            hx-indicator="#evaluate-spinner"
+        >
+            <input type="hidden" name="question_json" value='{{ question | tojson }}'>
+            <input type="hidden" name="difficulty" value="{{ difficulty.value }}">
+            <input type="hidden" name="topic" value="{{ topic.value }}">
+            <input type="hidden" id="selected-option" name="user_answer" value="">
 
-    <!-- Key Concepts -->
+            {% if not question.options %}
+            <label for="user-answer" class="block text-sm font-medium text-slate-700 mb-1">Your Answer</label>
+            <textarea
+                id="user-answer"
+                name="user_answer"
+                rows="4"
+                class="w-full p-3 border border-slate-300 rounded-lg text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                placeholder="Type your answer here..."
+                required
+            ></textarea>
+            {% endif %}
+
+            <div class="flex items-center gap-3 mt-3">
+                <button
+                    type="submit"
+                    id="submit-answer-btn"
+                    class="px-5 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    {% if question.options %}disabled{% endif %}
+                >
+                    Submit Answer
+                </button>
+                <svg id="evaluate-spinner" class="htmx-indicator animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+            </div>
+        </form>
+    </div>
+
+    <!-- Evaluation Result Area -->
+    <div id="evaluation-result">
+        <!-- HTMX will swap content here -->
+    </div>
+
+    <!-- Hidden: correct answer revealed after evaluation -->
+    <div id="correct-answer" class="hidden px-6 py-4 border-t border-slate-100 bg-slate-50">
+        <h3 class="text-sm font-semibold text-slate-900 mb-2">Correct Answer</h3>
+        {% if question.correct_option %}
+        <p class="text-sm text-slate-700">Option <strong>{{ question.correct_option }}</strong></p>
+        {% endif %}
+        {% if question.explanation %}
+        <p class="text-sm text-slate-600 mt-2">{{ question.explanation }}</p>
+        {% endif %}
+    </div>
+
+    <!-- Key Concepts (hidden until after evaluation) -->
     {% if question.key_concepts %}
-    <div class="px-6 py-3 border-t border-slate-100">
+    <div id="key-concepts" class="hidden px-6 py-3 border-t border-slate-100">
         <div class="flex flex-wrap gap-2">
             {% for concept in question.key_concepts %}
             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700">
@@ -66,3 +117,25 @@
     </div>
     {% endif %}
 </article>
+
+<script>
+function selectOption(btn, label) {
+    // Deselect all options
+    document.querySelectorAll('.mc-option').forEach(function(el) {
+        el.classList.remove('border-blue-500', 'bg-blue-50');
+        el.classList.add('border-slate-200');
+        el.querySelector('span:first-child').classList.remove('bg-blue-600', 'text-white');
+        el.querySelector('span:first-child').classList.add('bg-slate-100', 'text-slate-600');
+    });
+
+    // Select clicked option
+    btn.classList.remove('border-slate-200');
+    btn.classList.add('border-blue-500', 'bg-blue-50');
+    btn.querySelector('span:first-child').classList.remove('bg-slate-100', 'text-slate-600');
+    btn.querySelector('span:first-child').classList.add('bg-blue-600', 'text-white');
+
+    // Update hidden field and enable submit
+    document.getElementById('selected-option').value = label;
+    document.getElementById('submit-answer-btn').disabled = false;
+}
+</script>

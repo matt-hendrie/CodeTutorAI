@@ -1,4 +1,6 @@
 from app.models.prompts import (
+    AnswerEvaluationRequest,
+    AnswerEvaluationResponse,
     ChoiceOption,
     DifficultyLevel,
     GeneratedQuestion,
@@ -9,6 +11,8 @@ from app.models.prompts import (
 )
 
 __all__ = [
+    "AnswerEvaluationRequest",
+    "AnswerEvaluationResponse",
     "ChoiceOption",
     "DifficultyLevel",
     "GeneratedQuestion",

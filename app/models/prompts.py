@@ -146,3 +146,98 @@ class QuestionGenerationResponse(BaseModel):
         default="",
         description="The LLM model used to generate the questions.",
     )
+
+
+# ---------------------------------------------------------------------------
+# Answer evaluation models
+# ---------------------------------------------------------------------------
+
+
+class AnswerEvaluationRequest(BaseModel):
+    """Request model for evaluating a user's answer to a question."""
+
+    question: str = Field(
+        ...,
+        description="The original question text.",
+    )
+    correct_answer: str = Field(
+        ...,
+        description="The correct answer or explanation.",
+    )
+    user_answer: str = Field(
+        ...,
+        description="The user's submitted answer.",
+    )
+    difficulty: DifficultyLevel = Field(
+        default=DifficultyLevel.MEDIUM,
+        description="Difficulty level of the question.",
+    )
+    topic: QuestionTopic = Field(
+        default=QuestionTopic.ALGORITHMS,
+        description="The topic/category of the question.",
+    )
+    language: str = Field(
+        default="python",
+        description="Programming language context for the question.",
+    )
+    code_snippet: str = Field(
+        default="",
+        description="Code snippet associated with the question, if any.",
+    )
+
+
+class EvaluationScore(int):
+    """Score range for answer evaluation (1-10 scale).
+
+    1-3: Poor — fundamental misunderstanding or completely off-track
+    4-5: Below average — partial understanding but significant gaps
+    6-7: Satisfactory — mostly correct with minor gaps
+    8-9: Good — strong understanding with small imperfections
+    10: Excellent — complete and thorough understanding
+    """
+
+    MIN = 1
+    MAX = 10
+
+
+class AnswerEvaluationResponse(BaseModel):
+    """Response model for an evaluated answer."""
+
+    score: int = Field(
+        ...,
+        ge=1,
+        le=10,
+        description="Score from 1 (poor) to 10 (excellent).",
+    )
+    score_label: str = Field(
+        default="",
+        description="Human-readable label for the score band (e.g. 'Satisfactory').",
+    )
+    is_correct: bool = Field(
+        default=False,
+        description="Whether the answer is essentially correct (score >= 7).",
+    )
+    strengths: list[str] = Field(
+        default_factory=list,
+        description="What the user got right in their answer.",
+    )
+    weaknesses: list[str] = Field(
+        default_factory=list,
+        description="What the user missed or got wrong.",
+    )
+    feedback: str = Field(
+        default="",
+        description="Constructive feedback explaining the evaluation.",
+    )
+    improved_answer: str = Field(
+        default="",
+        description="An improved version of the user's answer.",
+    )
+    follow_up_questions: list[str] = Field(
+        default_factory=list,
+        description="Suggested follow-up questions for further learning.",
+    )
+    key_concepts: list[str] = Field(
+        default_factory=list,
+        description="Key concepts the user should review.",
+    )
