@@ -260,6 +260,47 @@ Evaluate the answer and respond ONLY with valid JSON — no markdown, no extra t
 - Keep the response concise
 """
 
+# ---------------------------------------------------------------------------
+# Multiple choice evaluation prompt — does NOT expect an explanation
+# ---------------------------------------------------------------------------
+
+MC_EVALUATE_PROMPT_TEMPLATE = """\
+You are a code tutor evaluating a learner's multiple choice answer. Be fair, constructive, and encouraging.
+
+## Question
+Title: {title}
+Topic: {topic_label} — {topic_description}
+Difficulty: {difficulty_label}
+
+{question_block}{code_block}
+## Options
+{options_block}
+## Correct Answer
+{correct_option}
+
+## Learner's Answer
+The learner selected: {user_answer}
+
+## Your Task
+This is a MULTIPLE CHOICE question. The learner simply selected an option — they are NOT expected to provide an explanation. Evaluate ONLY whether they selected the correct option. Do NOT penalise them for not explaining their choice.
+
+Respond ONLY with valid JSON — no markdown, no extra text. Format:
+
+{{"score": 10, "feedback": "If correct: explain why the answer is right. If incorrect: explain why the correct answer is right and why the selected option is wrong.", "correct_answer": "A concise summary of the correct answer", "key_points": ["key concept the question tests"], "follow_up": "A follow-up question to deepen understanding"}}
+
+## Scoring Rubric
+- 10: Correct — the learner selected the right option
+- 1: Incorrect — the learner selected the wrong option
+
+## Rules
+- Score must be 10 (correct) or 1 (incorrect) — no partial credit for multiple choice
+- Do NOT lower the score because the learner didn't explain their choice — multiple choice only requires selecting an option
+- Feedback must explain WHY the correct answer is correct
+- If the learner got it wrong, explain why their selection is incorrect
+- The follow_up question should help the learner explore the topic further
+- Keep the response concise
+"""
+
 QUESTION_BLOCK_TEMPLATE = """
 Question: {question}
 """
@@ -271,12 +312,17 @@ Code:
 ```
 """
 
+OPTIONS_BLOCK_TEMPLATE = """
+{options_text}
+"""
+
 
 def build_evaluate_prompt(
     question_data: dict[str, Any],
     user_answer: str,
     difficulty: DifficultyLevel | None = None,
     topic: Topic | None = None,
+    question_format: str | None = None,
 ) -> list[dict[str, str]]:
     """Build the message list for evaluating a learner's answer.
 
@@ -286,6 +332,8 @@ def build_evaluate_prompt(
         user_answer: The learner's submitted answer text.
         difficulty: Optional difficulty level for context.
         topic: Optional topic for context.
+        question_format: Optional format string (e.g. "multiple_choice", "short_answer").
+            When "multiple_choice", uses a template that doesn't expect an explanation.
 
     Returns:
         A list of message dicts ready to pass to LLMClient.chat().
@@ -298,15 +346,50 @@ def build_evaluate_prompt(
     code_snippet = question_data.get("code_snippet", "")
     code_block = CODE_BLOCK_TEMPLATE.format(code_snippet=code_snippet) if code_snippet else ""
 
-    system_content = EVALUATE_PROMPT_TEMPLATE.format(
-        title=question_data.get("title", ""),
-        topic_label=top.label,
-        topic_description=top.describe(),
-        difficulty_label=diff.label,
-        question_block=question_block,
-        code_block=code_block,
-        user_answer=user_answer,
-    )
+    # Use the multiple choice template when the format is multiple_choice.
+    # Prefer the explicit question_format parameter; only fall back to
+    # checking for options when no format was provided.
+    if question_format is not None:
+        is_multiple_choice = question_format == "multiple_choice"
+    else:
+        is_multiple_choice = bool(question_data.get("options"))
+
+    if is_multiple_choice:
+        # Build options text for the prompt
+        options = question_data.get("options", [])
+        if options:
+            options_lines = []
+            for opt in options:
+                label = opt.get("label", "?") if isinstance(opt, dict) else "?"
+                text = opt.get("text", "") if isinstance(opt, dict) else str(opt)
+                options_lines.append(f"{label}. {text}")
+            options_text = "\n".join(options_lines)
+        else:
+            options_text = "(options not available)"
+
+        correct_option = question_data.get("correct_option", "?")
+
+        system_content = MC_EVALUATE_PROMPT_TEMPLATE.format(
+            title=question_data.get("title", ""),
+            topic_label=top.label,
+            topic_description=top.describe(),
+            difficulty_label=diff.label,
+            question_block=question_block,
+            code_block=code_block,
+            options_block=OPTIONS_BLOCK_TEMPLATE.format(options_text=options_text),
+            correct_option=correct_option,
+            user_answer=user_answer,
+        )
+    else:
+        system_content = EVALUATE_PROMPT_TEMPLATE.format(
+            title=question_data.get("title", ""),
+            topic_label=top.label,
+            topic_description=top.describe(),
+            difficulty_label=diff.label,
+            question_block=question_block,
+            code_block=code_block,
+            user_answer=user_answer,
+        )
 
     messages = [
         {"role": "system", "content": system_content},

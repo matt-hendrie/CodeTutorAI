@@ -239,6 +239,158 @@ class TestBuildEvaluatePrompt:
         )
         assert "correct_answer" in messages[0]["content"]
 
+    # --- Multiple choice evaluation tests ---
+
+    def test_mc_template_used_when_format_is_multiple_choice(self):
+        """When question_format='multiple_choice', the MC-specific template is used."""
+        messages = build_evaluate_prompt(
+            question_data={
+                "question": "What does this function return?",
+                "options": [
+                    {"label": "A", "text": "Index"},
+                    {"label": "B", "text": "True"},
+                ],
+                "correct_option": "A",
+            },
+            user_answer="A",
+            question_format="multiple_choice",
+        )
+        # MC template says "multiple choice" and "selected" — not in the standard template
+        assert "multiple choice" in messages[0]["content"].lower()
+        assert "selected" in messages[0]["content"].lower()
+
+    def test_mc_prompt_does_not_expect_explanation(self):
+        """MC evaluation prompt explicitly says not to penalise for lack of explanation."""
+        messages = build_evaluate_prompt(
+            question_data={
+                "question": "What does this function return?",
+                "options": [
+                    {"label": "A", "text": "Index"},
+                    {"label": "B", "text": "True"},
+                ],
+                "correct_option": "A",
+            },
+            user_answer="A",
+            question_format="multiple_choice",
+        )
+        assert "NOT" in messages[0]["content"]
+        assert "penalise" in messages[0]["content"].lower() or "penalize" in messages[0]["content"].lower()
+
+    def test_mc_scoring_is_binary(self):
+        """MC evaluation rubric uses binary scoring (10 or 1), not the 1-10 scale."""
+        messages = build_evaluate_prompt(
+            question_data={
+                "question": "What does this function return?",
+                "options": [
+                    {"label": "A", "text": "Index"},
+                    {"label": "B", "text": "True"},
+                ],
+                "correct_option": "A",
+            },
+            user_answer="A",
+            question_format="multiple_choice",
+        )
+        # MC rubric says "10: Correct" and "1: Incorrect", not the standard 9-10/7-8 scale
+        assert "10: Correct" in messages[0]["content"] or "10: correct" in messages[0]["content"].lower()
+        assert "1: Incorrect" in messages[0]["content"] or "1: incorrect" in messages[0]["content"].lower()
+        # Standard rubric should NOT be present
+        assert "9-10" not in messages[0]["content"]
+
+    def test_mc_prompt_includes_options_in_prompt(self):
+        """MC evaluation prompt includes the option labels and texts."""
+        messages = build_evaluate_prompt(
+            question_data={
+                "question": "What does this function return?",
+                "options": [
+                    {"label": "A", "text": "Index of target"},
+                    {"label": "B", "text": "True"},
+                ],
+                "correct_option": "A",
+            },
+            user_answer="B",
+            question_format="multiple_choice",
+        )
+        assert "A. Index of target" in messages[0]["content"]
+        assert "B. True" in messages[0]["content"]
+
+    def test_mc_prompt_includes_correct_option(self):
+        """MC evaluation prompt includes the correct option for reference."""
+        messages = build_evaluate_prompt(
+            question_data={
+                "question": "What does this function return?",
+                "options": [
+                    {"label": "A", "text": "Index"},
+                    {"label": "B", "text": "True"},
+                ],
+                "correct_option": "A",
+            },
+            user_answer="B",
+            question_format="multiple_choice",
+        )
+        # The correct_option value should appear in the prompt
+        # (it's placed under "## Correct Answer" in the template)
+        assert "A" in messages[0]["content"]
+
+    def test_mc_prompt_shows_learner_selected_answer(self):
+        """MC evaluation prompt shows which option the learner selected."""
+        messages = build_evaluate_prompt(
+            question_data={
+                "question": "What does this function return?",
+                "options": [
+                    {"label": "A", "text": "Index"},
+                    {"label": "B", "text": "True"},
+                ],
+                "correct_option": "A",
+            },
+            user_answer="B",
+            question_format="multiple_choice",
+        )
+        assert "B" in messages[0]["content"]
+
+    def test_fallback_to_options_field_when_format_is_none(self):
+        """When question_format is None, detect MC from the 'options' field in question_data."""
+        messages = build_evaluate_prompt(
+            question_data={
+                "question": "What does this function return?",
+                "options": [
+                    {"label": "A", "text": "Index"},
+                    {"label": "B", "text": "True"},
+                ],
+                "correct_option": "A",
+            },
+            user_answer="A",
+            question_format=None,
+        )
+        # Should use MC template because options are present and format is not specified
+        assert "multiple choice" in messages[0]["content"].lower()
+
+    def test_no_mc_template_when_format_is_short_answer(self):
+        """When question_format='short_answer', use standard template even if options exist."""
+        messages = build_evaluate_prompt(
+            question_data={
+                "question": "What does this function return?",
+                "options": [
+                    {"label": "A", "text": "Index"},
+                    {"label": "B", "text": "True"},
+                ],
+                "correct_option": "A",
+            },
+            user_answer="It returns the index.",
+            question_format="short_answer",
+        )
+        # Should NOT use MC template because format explicitly says short_answer
+        assert "9-10" in messages[0]["content"]
+        assert "multiple choice" not in messages[0]["content"].lower()
+
+    def test_standard_template_used_when_no_options_and_no_format(self):
+        """When there are no options and no format, use the standard evaluation template."""
+        messages = build_evaluate_prompt(
+            question_data={"question": "What is a stack?"},
+            user_answer="A stack is a LIFO data structure.",
+        )
+        # Standard template has the 9-10 rubric
+        assert "9-10" in messages[0]["content"]
+
 
 # ---------------------------------------------------------------------------
 # AnswerEvaluationRequest model

@@ -12,6 +12,15 @@ from app.services.llm import llm_client
 from app.services.prompts import DifficultyLevel as SvcDifficulty
 from app.services.prompts import Topic, build_evaluate_prompt, build_question_prompt
 
+# Map from model format enum to a simple string for the evaluation prompt
+FORMAT_LABELS = {
+    QuestionFormat.MULTIPLE_CHOICE: "multiple_choice",
+    QuestionFormat.SHORT_ANSWER: "short_answer",
+    QuestionFormat.CODE_COMPLETION: "code_completion",
+    QuestionFormat.CODE_REVIEW: "code_review",
+    QuestionFormat.EXPLAIN_CODE: "explain_code",
+}
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/questions")
@@ -146,6 +155,7 @@ async def evaluate_answer(
     user_answer: str = Form(...),
     difficulty: DifficultyLevel = Form(DifficultyLevel.MEDIUM),
     topic: Topic = Form(Topic.ALGORITHMS),
+    format: QuestionFormat = Form(QuestionFormat.SHORT_ANSWER),
 ):
     """Evaluate a learner's answer via HTMX and return an HTML partial.
 
@@ -171,11 +181,15 @@ async def evaluate_answer(
     svc_difficulty = DIFFICULTY_MAP.get(difficulty, SvcDifficulty.MEDIUM)
 
     # Build the evaluation prompt messages
+    # Pass the question format so the evaluator knows whether this is
+    # multiple choice (just a letter) vs. short answer (an explanation).
+    question_format = FORMAT_LABELS.get(format, "short_answer")
     messages = build_evaluate_prompt(
         question_data=question_data,
         user_answer=user_answer,
         difficulty=svc_difficulty,
         topic=topic,
+        question_format=question_format,
     )
 
     try:
