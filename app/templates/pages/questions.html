@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}Generate Question - CodeTutorAI{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+    <header>
+        <h1 class="text-3xl font-bold text-slate-900">Generate a Question</h1>
+        <p class="mt-2 text-slate-600">Choose a topic and difficulty, then let the AI tutor create a coding question for you.</p>
+    </header>
+
+    <form
+        hx-post="/questions/generate"
+        hx-target="#question-result"
+        hx-swap="innerHTML"
+        hx-indicator="#generate-spinner"
+        class="space-y-6"
+    >
+        <!-- Topic Selector -->
+        <fieldset class="space-y-3">
+            <legend class="text-lg font-semibold text-slate-900">Topic</legend>
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                {% for t in topics %}
+                <label class="flex items-center gap-2 p-3 bg-white border border-slate-200 rounded-lg cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
+                    <input
+                        type="radio"
+                        name="topic"
+                        value="{{ t.value }}"
+                        {% if t == selected_topic %}checked{% endif %}
+                        class="accent-blue-600"
+                    >
+                    <span class="text-sm font-medium text-slate-700">{{ t.label }}</span>
+                </label>
+                {% endfor %}
+            </div>
+        </fieldset>
+
+        <!-- Difficulty Level -->
+        <fieldset class="space-y-3">
+            <legend class="text-lg font-semibold text-slate-900">Difficulty</legend>
+            <div class="flex gap-4">
+                {% for d in difficulties %}
+                <label class="flex-1 flex items-center justify-center gap-2 p-4 bg-white border-2 rounded-lg cursor-pointer transition-colors
+                    {% if d.value == 'easy' %}border-emerald-200 hover:border-emerald-400 hover:bg-emerald-50 has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-50{% elif d.value == 'medium' %}border-amber-200 hover:border-amber-400 hover:bg-amber-50 has-[:checked]:border-amber-500 has-[:checked]:bg-amber-50{% else %}border-red-200 hover:border-red-400 hover:bg-red-50 has-[:checked]:border-red-500 has-[:checked]:bg-red-50{% endif %}">
+                    <input
+                        type="radio"
+                        name="difficulty"
+                        value="{{ d.value }}"
+                        {% if d == selected_difficulty %}checked{% endif %}
+                        class="sr-only"
+                    >
+                    <span class="text-sm font-semibold">{{ d.value.capitalize() }}</span>
+                </label>
+                {% endfor %}
+            </div>
+        </fieldset>
+
+        <!-- Question Format -->
+        <fieldset class="space-y-3">
+            <legend class="text-lg font-semibold text-slate-900">Format</legend>
+            <select
+                name="format"
+                class="w-full max-w-xs p-2.5 bg-white border border-slate-300 rounded-lg text-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+                {% for f in formats %}
+                <option value="{{ f.value }}" {% if f == selected_format %}selected{% endif %}>
+                    {{ f.value.replace('_', ' ').title() }}
+                </option>
+                {% endfor %}
+            </select>
+        </fieldset>
+
+        <!-- Language -->
+        <fieldset class="space-y-3">
+            <legend class="text-lg font-semibold text-slate-900">Language</legend>
+            <select
+                name="language"
+                class="w-full max-w-xs p-2.5 bg-white border border-slate-300 rounded-lg text-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+                {% for value, label in languages %}
+                <option value="{{ value }}" {% if value == selected_language %}selected{% endif %}>
+                    {{ label }}
+                </option>
+                {% endfor %}
+            </select>
+        </fieldset>
+
+        <!-- Submit -->
+        <div class="flex items-center gap-4">
+            <button
+                type="submit"
+                class="px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors"
+            >
+                Generate Question
+            </button>
+            <svg id="generate-spinner" class="htmx-indicator animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+        </div>
+    </form>
+
+    <!-- Result Area -->
+    <div id="question-result">
+        <!-- HTMX will swap content here -->
+    </div>
+</div>
+{% endblock %}
